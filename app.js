@@ -1,103 +1,104 @@
-const express = require("express");
-const path = require("path");
+const express = require('express');
+const mongoose = require('mongoose');
+const path = require('path');
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
+// Set the view engine to EJS
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views/index.ejs'));
+app.set('views', path.join(__dirname, 'views'));
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Conversion functions
-function poundsToKg(pounds) {
-    return (pounds * 0.45359237).toFixed(2);
-}
-
-function kgToPounds(kg) {
-    return (kg * 2.20462).toFixed(2);
-}
-
-function dollarsToJD(dollars) {
-    const conversionRate = 0.71; // 1 USD = 0.71 JD
-    return (dollars * conversionRate).toFixed(2);
-}
-
-function jdToDollars(jd) {
-    const conversionRate = 1.41; // 1 JD = 1.41 USD
-    return (jd * conversionRate).toFixed(2);
-}
-function calculateShippingCost(weight, currency) {
-    const halfKgRate = 20;
-    const extraHalfKgRate = 8;
-    const extraKgRate = 8;
-
-    let cost = 0;
-
-    if (weight <= 0.5) {
-        cost = halfKgRate;
-    } else if (weight <= 15) {
-        const extraHalfKgs = Math.ceil((weight - 0.5) / 0.5);
-        cost = halfKgRate + (extraHalfKgs * extraHalfKgRate);
-    } else if (weight <= 30) {
-        const extraKgs = Math.ceil(weight - 15);
-        cost = halfKgRate + (15 * extraHalfKgRate) + (extraKgs * extraKgRate);
-    }
-
-    if (currency === 'usd') {
-        const exchangeRate = 0.71; // 1 JD = 0.71 USD
-        cost *= exchangeRate;
-    }
-
-    return Math.round(cost * 100) / 100; // Round to two decimal places
-}
-
-// Get the home page
-app.get('/', (req, res) => {
-    res.render('views/index.ejs');
-  });
-
-// Post request for conversion
-app.post('/convert', (req, res) => {
-    const { value, fromUnit, toUnit } = req.body;
-    let result;
-
-    if (fromUnit === 'pounds' && toUnit === 'kg') {
-        result = poundsToKg(value);
-    } else if (fromUnit === 'kg' && toUnit === 'pounds') {
-        result = kgToPounds(value);
-    } else if (fromUnit === 'dollars' && toUnit === 'JD') {
-        result = dollarsToJD(value);
-    } else if (fromUnit === 'JD' && toUnit === 'dollars') {
-        result = jdToDollars(value);
-    }
-
-    res.render('result', { value, fromUnit, toUnit, result });
+const uri = "mongodb+srv://moayyadalazzam:GVtPjkX8hHChmG7j@cluster0.348ct3z.mongodb.net/todoListDB?retryWrites=true&w=majority";
+mongoose.connect(uri, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
 });
 
-// Post request for shipping cost calculation
-app.post('/calculate-shipping', (req, res) => {
-    const { weight, unit } = req.body;
-    const parsedWeight = parseFloat(weight);
+const db = mongoose.connection;
 
-    let convertedWeight;
-    let currency;
-
-    if (unit === 'kg') {
-        convertedWeight = parsedWeight;
-        currency = 'jd'; // Cost will be calculated in JD
-    } else if (unit === 'pounds') {
-        convertedWeight = poundsToKg(parsedWeight);
-        currency = 'usd'; // Cost will be calculated in USD
-    } else {
-        res.send('Invalid unit selection.');
-        return;
-    }
-
-    const shippingCost = calculateShippingCost(convertedWeight, currency);
-    res.render('/shipping-result', { weight: parsedWeight, unit, currency, shippingCost });
+db.on('error', console.error.bind(console, 'connection error:'));
+db.once('open', () => {
+  console.log('Connected to MongoDB');
 });
 
-// Start the server and listen on the specified port
+const taskSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  description: String,
+  completed: Boolean,
+  time: String,
+  createdAt: { type: Date, default: Date.now },
+  deleted: { type: Boolean, default: false }, // New 'deleted' field
+});
+
+const Task = mongoose.model('Task', taskSchema);
+
+app.get('/', async (req, res) => {
+  try {
+    const tasks = await Task.find({ deleted: false }); // Fetch tasks that are not deleted
+
+    const today = new Date();
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const formattedDate = today.toLocaleDateString(undefined, options);
+
+    res.render('index', { tasks, formattedDate }); // Pass the formattedDate variable
+  } catch (error) {
+    console.error('Error fetching tasks:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+app.post('/add-task', async (req, res) => {
+  const taskText = req.body.taskInput;
+  if (taskText) {
+    const newTask = new Task({
+      title: taskText,
+      completed: false,
+      time: new Date().toLocaleTimeString(), // Set the time field to the current time
+    });
+    try {
+      await newTask.save();
+      console.log('Task saved:', newTask);
+    } catch (error) {
+      console.error('Error saving task:', error);
+    }
+  }
+  res.redirect('/');
+});
+
+app.post('/update-task', async (req, res) => {
+  const taskId = req.body.taskId;
+  try {
+    const task = await Task.findById(taskId);
+    if (task) {
+      task.completed = !task.completed;
+      task.time = new Date().toLocaleTimeString(); // Update the time field
+      await task.save();
+      console.log('Task updated:', task);
+    }
+  } catch (error) {
+    console.error('Error updating task:', error);
+  }
+  res.redirect('/');
+});
+
+app.post('/delete-task', async (req, res) => {
+  const taskId = req.body.taskId;
+  try {
+    const task = await Task.findById(taskId);
+    if (task) {
+      task.deleted = true; // Mark the task as deleted
+      await task.save();
+      console.log('Task deleted:', task);
+    }
+  } catch (error) {
+    console.error('Error deleting task:', error);
+  }
+  res.redirect('/');
+});
+
+
 app.listen(process.env.PORT ||port, () => {
     console.log(`App listening on port ${port}`);
     console.log(`App listening on port ${process.env.PORT}`);
