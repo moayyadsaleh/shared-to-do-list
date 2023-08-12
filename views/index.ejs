@@ -1,43 +1,42 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="styles.css">
-    <%- include('partials/header') %>
-    <title>ShippingCostCalculator</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/styles.css">
+  <%- include('partials/header') %>
+  <title>To Do List</title>
 </head>
 <body>
-    <h1>Unit Conversion</h1>
-    <form action="/convert" method="POST">
-        <input type="number" name="value" placeholder="Enter the value you want to convert (e.g., 10)" required>
-        <select name="fromUnit">
-            <option value="pounds">Pounds</option>
-            <option value="kg">Kilograms</option>
-            <option value="dollars">Dollars</option>
-            <option value="JD">Jordan Dinner (JD)</option>
-        </select>
-        <select name="toUnit">
-            <option value="pounds">Pounds</option>
-            <option value="kg">Kilograms</option>
-            <option value="dollars">Dollars</option>
-            <option value="JD">Jordan Dinner (JD)</option>
-        </select>
-        <button type="submit">Convert</button>
-    </form>
-    
-    <h1>Shipping Cost Calculation</h1>
-    <form action="/calculate-shipping" method="POST">
-        <input type="number" name="weight" placeholder="Enter weight (e.g., 10)" required>
-        <select name="unit">
-            <option value="kg">Kilograms (kg)</option>
-            <option value="pounds">Pounds (lb)</option>
-        </select>
-        <input type="hidden" name="currency" value="usd"> <!-- or 'jd' if you want JD as default -->
-        <button type="submit">Calculate Shipping Cost</button>
-    </form>
+  <div class="todays-date">
+    <%= formattedDate %>
+  </div>
+  <form action="/add-task" method="post">
+    <input type="text" name="taskInput" placeholder="Enter a new task" required/>
+    <button type="submit">Add Task</button>
+  </form>
+  <div class="tasks-container">
+    <ul>
+      <% tasks.forEach((task) => { %>
+        <li class="todo-item <%= task.completed ? 'completed' : '' %>">
+          <form action="/update-task" method="post" class="task-form">
+            <input type="hidden" name="taskId" value="<%= task._id %>">
+            <input type="checkbox" <%= task.completed ? 'checked' : '' %> onchange="this.form.submit()">
+            <strong <%= task.completed ? 'class="completed"' : '' %>><%= task.title %></strong>
+            <button type="submit" style="display: none;"></button> <!-- Hidden submit button to trigger form submission -->
+          </form>
+          <!-- Add the delete form for each task -->
+          <form action="/delete-task" method="post" class="task-form">
+            <input type="hidden" name="taskId" value="<%= task._id %>">
+            <button type="submit" class="delete-button" onclick="return confirm('Are you sure you want to delete this task?')">Delete</button>
+          </form>
+          <span class="timestamp"> Added: <%= task.createdAt.toLocaleTimeString() %></span>
+        </li>
+      <% }); %>
+      
+    </ul>
+  </div>
+
 </body>
 </html>
-
 
